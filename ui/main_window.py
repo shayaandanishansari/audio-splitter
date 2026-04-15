@@ -1,3 +1,4 @@
+import threading
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QObject, QThread, QTimer, Signal
@@ -51,6 +52,10 @@ class _TranscriptionWorker(QObject):
         super().__init__()
         self._file_path = file_path
         self._output_folder = output_folder
+        self._stop_event = threading.Event()
+
+    def cancel(self):
+        self._stop_event.set()
 
     def run(self):
         try:
@@ -58,8 +63,11 @@ class _TranscriptionWorker(QObject):
                 self._file_path,
                 output_folder=self._output_folder,
                 progress_callback=self.progress.emit,
+                stop_event=self._stop_event,
             )
             self.finished.emit(path)
+        except InterruptedError:
+            self.failed.emit("cancelled")
         except Exception as exc:
             self.failed.emit(str(exc))
 
@@ -164,6 +172,7 @@ class MainWindow(QMainWindow):
         self.controls.play_clicked.connect(self._on_play)
         self.controls.pause_clicked.connect(self._on_pause)
         self.controls.transcribe_clicked.connect(self._on_transcribe)
+        self.controls.stop_clicked.connect(self._on_stop_transcription)
         self.controls.reset_clicked.connect(self._on_reset)
         self.controls.confirm_clicked.connect(self._on_confirm)
         root.addWidget(self.controls)
@@ -217,6 +226,15 @@ class MainWindow(QMainWindow):
             }
             QPushButton#confirmBtn:hover {
                 background-color: #4abb66;
+            }
+            QPushButton#stopBtn {
+                background-color: #cc5555;
+            }
+            QPushButton#stopBtn:hover {
+                background-color: #dd6666;
+            }
+            QPushButton#stopBtn:pressed {
+                background-color: #aa3333;
             }
             QSlider::groove:horizontal {
                 height: 4px;
@@ -381,11 +399,16 @@ class MainWindow(QMainWindow):
         if self._audio_data is None:
             QMessageBox.warning(self, "No File", "Please select an audio file first.")
             return
-        self.controls.transcribe_btn.setEnabled(False)
+        self.controls.transcribe_btn.hide()
+        self.controls.stop_btn.show()
         self._start_transcription(
             self._audio_data["file_path"],
             self.input_panel.output_folder or None,
         )
+
+    def _on_stop_transcription(self):
+        if self._transcription_worker:
+            self._transcription_worker.cancel()
 
     def _start_transcription(self, file_path: str, output_folder: str | None = None):
         if self._transcription_thread and self._transcription_thread.isRunning():
@@ -407,7 +430,8 @@ class MainWindow(QMainWindow):
     def _on_transcription_done(self, transcript_path: str):
         self.progress_bar.hide()
         self.progress_bar.setValue(0)
-        self.controls.transcribe_btn.setEnabled(True)
+        self.controls.stop_btn.hide()
+        self.controls.transcribe_btn.show()
         self.status_label.setText(
             f"✓  Transcript saved → {Path(transcript_path).name}"
         )
@@ -415,8 +439,12 @@ class MainWindow(QMainWindow):
     def _on_transcription_failed(self, error: str):
         self.progress_bar.hide()
         self.progress_bar.setValue(0)
-        self.controls.transcribe_btn.setEnabled(True)
-        self.status_label.setText(f"⚠  Transcription failed: {error}")
+        self.controls.stop_btn.hide()
+        self.controls.transcribe_btn.show()
+        if error == "cancelled":
+            self.status_label.setText("Transcription stopped")
+        else:
+            self.status_label.setText(f"⚠  Transcription failed: {error}")
 
     # ------------------------------------------------------------------
     # Helpers
@@ -439,8 +467,11 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self._player.stop()
+        # Cancel transcription first so the segment loop exits cleanly
+        if self._transcription_worker:
+            self._transcription_worker.cancel()
         for thread in (self._load_thread, self._transcription_thread, self._split_thread):
             if thread and thread.isRunning():
                 thread.quit()
-                thread.wait()
+                thread.wait(3000)   # up to 3 s; don't block forever
         super().closeEvent(event)

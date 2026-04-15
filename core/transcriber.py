@@ -1,3 +1,4 @@
+import threading
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -22,6 +23,7 @@ def transcribe(
     output_folder: Optional[str] = None,
     model_size: str = DEFAULT_MODEL,
     progress_callback: Optional[Callable[[int], None]] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> str:
     """
     Transcribe an audio file using faster-whisper and save a timestamped
@@ -32,6 +34,9 @@ def transcribe(
 
     progress_callback is called with an integer 0-100 as each segment
     is processed, derived from segment.end / total_duration.
+
+    stop_event: if set, the segment loop checks it between segments and
+    raises InterruptedError when it is set (cancellation).
 
     Returns the path to the saved transcript file.
     """
@@ -47,6 +52,8 @@ def transcribe(
 
     lines = []
     for segment in segments:
+        if stop_event and stop_event.is_set():
+            raise InterruptedError("Transcription cancelled")
         timestamp = seconds_to_timestamp(segment.start)
         lines.append(f"[{timestamp}] {segment.text.strip()}")
         if progress_callback:

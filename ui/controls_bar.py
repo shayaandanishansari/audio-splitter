@@ -15,6 +15,7 @@ class ControlsBar(QWidget):
     reset_clicked       = Signal()
     confirm_clicked     = Signal()
     transcribe_clicked  = Signal()
+    stop_clicked        = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -29,6 +30,7 @@ class ControlsBar(QWidget):
         self.pause_btn      = QPushButton("▮▮")
         self.timer_label    = QLabel("00:00.00")
         self.transcribe_btn = QPushButton("⌨  Transcribe")
+        self.stop_btn       = QPushButton("■  Stop")
         self.reset_btn      = QPushButton("↺  Reset")
         self.confirm_btn    = QPushButton("✓")
 
@@ -51,13 +53,18 @@ class ControlsBar(QWidget):
         layout.addStretch()
         layout.addWidget(self.timer_label)
         layout.addStretch()
+        self.stop_btn.setObjectName("stopBtn")
+        self.stop_btn.hide()
+
         layout.addWidget(self.transcribe_btn)
+        layout.addWidget(self.stop_btn)
         layout.addWidget(self.reset_btn)
         layout.addWidget(self.confirm_btn)
 
         self.play_btn.clicked.connect(self.play_clicked)
         self.pause_btn.clicked.connect(self.pause_clicked)
         self.transcribe_btn.clicked.connect(self.transcribe_clicked)
+        self.stop_btn.clicked.connect(self.stop_clicked)
         self.reset_btn.clicked.connect(self.reset_clicked)
         self.confirm_btn.clicked.connect(self.confirm_clicked)
 
