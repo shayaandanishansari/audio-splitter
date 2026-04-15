@@ -26,14 +26,16 @@ class ControlsBar(QWidget):
         layout.setSpacing(8)
 
         self.play_btn       = QPushButton("▶")
-        self.pause_btn      = QPushButton("⏸")
+        self.pause_btn      = QPushButton("▮▮")
         self.timer_label    = QLabel("00:00.00")
         self.transcribe_btn = QPushButton("⌨  Transcribe")
         self.reset_btn      = QPushButton("↺  Reset")
         self.confirm_btn    = QPushButton("✓")
 
+        symbol_font = QFont("Segoe UI Symbol", 11)
         for btn in (self.play_btn, self.pause_btn):
             btn.setFixedSize(40, 40)
+            btn.setFont(symbol_font)
 
         self.confirm_btn.setFixedSize(48, 40)
         self.confirm_btn.setObjectName("confirmBtn")

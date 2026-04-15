@@ -236,6 +236,20 @@ class MainWindow(QMainWindow):
                 border-radius: 5px;
                 padding: 2px 4px;
             }
+            QPushButton#spinArrow {
+                background-color: #b09090;
+                color: #ffffff;
+                border: none;
+                border-radius: 3px;
+                font-size: 8px;
+                padding: 0px;
+            }
+            QPushButton#spinArrow:hover {
+                background-color: #c0a0a0;
+            }
+            QPushButton#spinArrow:pressed {
+                background-color: #906060;
+            }
             WaveformWidget {
                 border-radius: 10px;
             }

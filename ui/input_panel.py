@@ -2,6 +2,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QAbstractSpinBox,
     QDoubleSpinBox,
     QFileDialog,
     QHBoxLayout,
@@ -12,6 +13,35 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+
+def _make_spin(spin: QSpinBox, row: QHBoxLayout, suffix: str = "") -> None:
+    """Add a spinbox (no built-in arrows) + separate ▲▼ buttons + optional label to a layout."""
+    spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+    spin.setFixedWidth(40)
+    spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+    btn_up = QPushButton("▲")
+    btn_dn = QPushButton("▼")
+    for btn in (btn_up, btn_dn):
+        btn.setFixedSize(22, 18)
+        btn.setObjectName("spinArrow")
+
+    btn_up.clicked.connect(spin.stepUp)
+    btn_dn.clicked.connect(spin.stepDown)
+
+    arrow_col = QVBoxLayout()
+    arrow_col.setSpacing(1)
+    arrow_col.setContentsMargins(0, 0, 0, 0)
+    arrow_col.addWidget(btn_up)
+    arrow_col.addWidget(btn_dn)
+
+    row.addWidget(spin)
+    row.addLayout(arrow_col)
+    if suffix:
+        lbl = QLabel(suffix)
+        lbl.setFixedWidth(10)
+        row.addWidget(lbl)
 
 
 # ---------------------------------------------------------------------------
@@ -78,10 +108,9 @@ class ChunkDurationPanel(QWidget):
         self.chunks_spin = QSpinBox()
         self.chunks_spin.setRange(2, 20)
         self.chunks_spin.setValue(4)
-        self.chunks_spin.setFixedWidth(72)
         chunks_row.addWidget(lbl_c)
         chunks_row.addWidget(self.chunks_slider)
-        chunks_row.addWidget(self.chunks_spin)
+        _make_spin(self.chunks_spin, chunks_row)
 
         # -- Duration row: label | slider | HH | MM | SS --
         dur_row = QHBoxLayout()
@@ -95,26 +124,20 @@ class ChunkDurationPanel(QWidget):
         self.dur_h = QSpinBox()
         self.dur_h.setRange(0, 99)
         self.dur_h.setValue(0)
-        self.dur_h.setSuffix("h")
-        self.dur_h.setFixedWidth(62)
 
         self.dur_m = QSpinBox()
         self.dur_m.setRange(0, 59)
         self.dur_m.setValue(0)
-        self.dur_m.setSuffix("m")
-        self.dur_m.setFixedWidth(62)
 
         self.dur_s = QSpinBox()
         self.dur_s.setRange(0, 59)
         self.dur_s.setValue(30)
-        self.dur_s.setSuffix("s")
-        self.dur_s.setFixedWidth(62)
 
         dur_row.addWidget(lbl_d)
         dur_row.addWidget(self.dur_slider)
-        dur_row.addWidget(self.dur_h)
-        dur_row.addWidget(self.dur_m)
-        dur_row.addWidget(self.dur_s)
+        _make_spin(self.dur_h, dur_row, "h")
+        _make_spin(self.dur_m, dur_row, "m")
+        _make_spin(self.dur_s, dur_row, "s")
 
         layout.addLayout(chunks_row)
         layout.addLayout(dur_row)
