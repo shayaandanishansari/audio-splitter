@@ -78,7 +78,7 @@ class ChunkDurationPanel(QWidget):
         self.chunks_spin = QSpinBox()
         self.chunks_spin.setRange(2, 20)
         self.chunks_spin.setValue(4)
-        self.chunks_spin.setMinimumWidth(55)
+        self.chunks_spin.setFixedWidth(72)
         chunks_row.addWidget(lbl_c)
         chunks_row.addWidget(self.chunks_slider)
         chunks_row.addWidget(self.chunks_spin)
@@ -96,19 +96,19 @@ class ChunkDurationPanel(QWidget):
         self.dur_h.setRange(0, 99)
         self.dur_h.setValue(0)
         self.dur_h.setSuffix("h")
-        self.dur_h.setMinimumWidth(52)
+        self.dur_h.setFixedWidth(62)
 
         self.dur_m = QSpinBox()
         self.dur_m.setRange(0, 59)
         self.dur_m.setValue(0)
         self.dur_m.setSuffix("m")
-        self.dur_m.setMinimumWidth(52)
+        self.dur_m.setFixedWidth(62)
 
         self.dur_s = QSpinBox()
         self.dur_s.setRange(0, 59)
         self.dur_s.setValue(30)
         self.dur_s.setSuffix("s")
-        self.dur_s.setMinimumWidth(52)
+        self.dur_s.setFixedWidth(62)
 
         dur_row.addWidget(lbl_d)
         dur_row.addWidget(self.dur_slider)
@@ -153,28 +153,32 @@ class ChunkDurationPanel(QWidget):
         if self._busy:
             return
         self._busy = True
-        chunks = max(2, chunks)
-        self.chunks_slider.setValue(chunks)
-        self.chunks_spin.setValue(chunks)
-        if self._total > 0:
-            dur = self._total / chunks
-            self.dur_slider.setValue(max(1, int(dur)))
-            self._seconds_to_hms(dur)
-        self._busy = False
+        try:
+            chunks = max(2, chunks)
+            self.chunks_slider.setValue(chunks)
+            self.chunks_spin.setValue(chunks)
+            if self._total > 0:
+                dur = self._total / chunks
+                self.dur_slider.setValue(max(1, int(dur)))
+                self._seconds_to_hms(dur)
+        finally:
+            self._busy = False
         self.chunks_changed.emit(chunks)
 
     def _apply_duration(self, duration: float):
         if self._busy:
             return
         self._busy = True
-        duration = max(1.0, duration)
-        self.dur_slider.setValue(max(1, int(duration)))
-        self._seconds_to_hms(duration)
-        if self._total > 0 and duration > 0:
-            chunks = max(2, int(self._total / duration))
-            self.chunks_slider.setValue(chunks)
-            self.chunks_spin.setValue(chunks)
-        self._busy = False
+        try:
+            duration = max(1.0, duration)
+            self.dur_slider.setValue(max(1, int(duration)))
+            self._seconds_to_hms(duration)
+            if self._total > 0 and duration > 0:
+                chunks = max(2, int(self._total / duration))
+                self.chunks_slider.setValue(chunks)
+                self.chunks_spin.setValue(chunks)
+        finally:
+            self._busy = False
         self.duration_changed.emit(duration)
 
     # -- Slots --

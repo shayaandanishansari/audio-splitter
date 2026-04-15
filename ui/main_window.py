@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QMessageBox,
+    QProgressBar,
     QVBoxLayout,
     QWidget,
 )
@@ -44,6 +45,7 @@ class _LoadWorker(QObject):
 class _TranscriptionWorker(QObject):
     finished = Signal(str)
     failed   = Signal(str)
+    progress = Signal(int)   # 0-100
 
     def __init__(self, file_path: str):
         super().__init__()
@@ -51,7 +53,7 @@ class _TranscriptionWorker(QObject):
 
     def run(self):
         try:
-            path = transcribe(self._file_path)
+            path = transcribe(self._file_path, progress_callback=self.progress.emit)
             self.finished.emit(path)
         except Exception as exc:
             self.failed.emit(str(exc))
@@ -131,6 +133,14 @@ class MainWindow(QMainWindow):
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.status_label.setObjectName("statusLabel")
         root.addWidget(self.status_label)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setRange(0, 100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFixedHeight(6)
+        self.progress_bar.setTextVisible(False)
+        self.progress_bar.hide()
+        root.addWidget(self.progress_bar)
 
         self.input_panel = InputPanel()
         self.input_panel.file_selected.connect(self._on_file_selected)
@@ -222,6 +232,15 @@ class MainWindow(QMainWindow):
             }
             WaveformWidget {
                 border-radius: 10px;
+            }
+            QProgressBar {
+                background-color: #e0c0c0;
+                border: none;
+                border-radius: 3px;
+            }
+            QProgressBar::chunk {
+                background-color: #9e8080;
+                border-radius: 3px;
             }
         """)
 
@@ -347,14 +366,24 @@ class MainWindow(QMainWindow):
         self._transcription_worker = _TranscriptionWorker(file_path)
         self._transcription_worker.finished.connect(self._on_transcription_done)
         self._transcription_worker.failed.connect(self._on_transcription_failed)
+        self._transcription_worker.progress.connect(self._on_transcription_progress)
         self._transcription_thread = _start_worker(self._transcription_worker, self)
 
+    def _on_transcription_progress(self, pct: int):
+        self.progress_bar.show()
+        self.progress_bar.setValue(pct)
+        self.status_label.setText(f"⏳  Transcribing... {pct}%")
+
     def _on_transcription_done(self, transcript_path: str):
+        self.progress_bar.hide()
+        self.progress_bar.setValue(0)
         self.status_label.setText(
             f"✓  Transcript saved → {Path(transcript_path).name}"
         )
 
     def _on_transcription_failed(self, error: str):
+        self.progress_bar.hide()
+        self.progress_bar.setValue(0)
         self.status_label.setText(f"⚠  Transcription failed: {error}")
 
     # ------------------------------------------------------------------

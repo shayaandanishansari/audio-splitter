@@ -1,0 +1,129 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  # ------------------------------------------------------------------
+  # Version tag:  v0.1.0-dev-{date}-{short_sha}
+  # ------------------------------------------------------------------
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: tag
+        run: |
+          SHA=$(git rev-parse --short HEAD)
+          DATE=$(date +%Y%m%d)
+          echo "tag=v0.1.0-dev-${DATE}-${SHA}" >> "$GITHUB_OUTPUT"
+
+  # ------------------------------------------------------------------
+  # Windows — PyInstaller → .exe (ffmpeg installed via choco)
+  # ------------------------------------------------------------------
+  build-windows:
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ffmpeg
+        run: choco install ffmpeg -y
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build with PyInstaller
+        run: pyinstaller build.spec --clean
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-splitter-win
+          path: dist/AudioSplitter.exe
+
+  # ------------------------------------------------------------------
+  # Linux — PyInstaller → ELF binary (ffmpeg installed via apt)
+  # ------------------------------------------------------------------
+  build-linux:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt update
+          sudo apt install -y ffmpeg
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build with PyInstaller
+        run: pyinstaller build.spec --clean
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: audio-splitter-linux
+          path: dist/AudioSplitter
+
+  # ------------------------------------------------------------------
+  # Release — create or update the dev release on every push
+  # ------------------------------------------------------------------
+  release:
+    needs: [version, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: audio-splitter-win
+          path: artifacts/
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: audio-splitter-linux
+          path: artifacts/
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: "Dev Build ${{ needs.version.outputs.tag }}"
+          body: |
+            Automatic dev build from `main` branch.
+
+            ## Downloads
+            - **AudioSplitter.exe** — Windows (requires `ffmpeg` on system PATH)
+            - **AudioSplitter** — Linux (`chmod +x` and run; requires `ffmpeg`)
+
+            ## Notes
+            - Unsigned build — Windows SmartScreen may show a warning
+            - Transcription downloads the Whisper `base` model (~140 MB) on first use
+            - Built with PyInstaller — no Python installation needed on the target machine
+
+            See [INSTALL.md](https://github.com/${{ github.repository }}/blob/main/INSTALL.md) for full setup details.
+          files: |
+            artifacts/AudioSplitter.exe
+            artifacts/AudioSplitter

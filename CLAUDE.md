@@ -180,7 +180,7 @@ audio_splitter/
 ├── core/
 │   ├── __init__.py
 │   ├── audio.py             # Audio loading, waveform extraction (numpy/soundfile)
-│   ├── splitter.py          # Splitting logic using pydub, file export
+│   ├── splitter.py          # Splitting logic using ffmpeg subprocess, file export
 │   ├── player.py            # Playback engine (sounddevice), playhead position
 │   └── transcriber.py       # faster-whisper transcription, saves <stem>.txt alongside audio
 │
@@ -204,6 +204,75 @@ audio_splitter/
 ```
 
 **Key design note:** `core/` is completely UI-agnostic — no PySide6 imports. `waveform_widget.py` will be the most complex file, handling marker dragging, waveform painting, and playhead rendering.
+
+---
+
+## Agent-Usable API (planned, not yet built)
+
+The `core/` layer is already UI-agnostic, making it the natural foundation for an agent-facing API. No GUI changes needed — agents call core functions directly.
+
+### Planned files
+- `cli.py` — command-line interface, all output as JSON to stdout
+- `agent_api.py` — single clean Python function wrapping the full pipeline
+
+### CLI design
+
+```bash
+# Split into N equal chunks
+python cli.py audio.mp3 --chunks 4
+
+# Split every N seconds
+python cli.py audio.mp3 --duration 30
+
+# Split at explicit timestamps (seconds)
+python cli.py audio.mp3 --at 30,75.5,120
+
+# Transcribe only
+python cli.py audio.mp3 --transcribe
+
+# Full pipeline: transcribe, let agent reason about splits, then split
+python cli.py audio.mp3 --transcribe --chunks 4 --output ./out
+
+# Custom output folder
+python cli.py audio.mp3 --chunks 4 --output ./out
+```
+
+All commands return JSON to stdout:
+```json
+{
+  "success": true,
+  "files": ["out/track_001.mp3", "out/track_002.mp3"],
+  "chunks": 4,
+  "duration": 183.4,
+  "transcript": "out/track.txt"
+}
+```
+
+### Python API design
+
+```python
+from agent_api import split_audio
+
+result = split_audio(
+    file="path/to/audio.mp3",
+    output=None,              # defaults to same dir as file
+    mode="chunks",            # "chunks" | "duration" | "timestamps"
+    value=4,                  # int for chunks, float for duration, list[float] for timestamps
+    transcribe=True,          # whether to also generate transcript
+)
+# returns same structure as JSON above
+```
+
+### Agent intelligence flow (the real value)
+
+1. `transcribe(file)` → timestamped transcript
+2. Agent reads transcript, reasons about natural split points (topic changes, speaker shifts, pauses)
+3. Agent calls `split_audio(file, mode="timestamps", value=[t1, t2, ...])` with its chosen points
+4. Result: intelligently split files, not just equal-duration chunks
+
+### Key note on transcription
+- If a `<stem>.txt` already exists alongside the audio, the agent should check for it before calling transcribe again — avoids redundant Whisper runs
+- The GUI auto-generates this file on every file load, so GUI and agent paths naturally share transcripts
 
 ---
 
