@@ -68,7 +68,7 @@ class ChunkDurationPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
 
-        # -- Chunks row --
+        # -- Chunks row: label | slider | spinbox --
         chunks_row = QHBoxLayout()
         lbl_c = QLabel("Chunks:")
         lbl_c.setFixedWidth(58)
@@ -78,27 +78,43 @@ class ChunkDurationPanel(QWidget):
         self.chunks_spin = QSpinBox()
         self.chunks_spin.setRange(2, 20)
         self.chunks_spin.setValue(4)
-        self.chunks_spin.setFixedWidth(52)
+        self.chunks_spin.setMinimumWidth(55)
         chunks_row.addWidget(lbl_c)
         chunks_row.addWidget(self.chunks_slider)
         chunks_row.addWidget(self.chunks_spin)
 
-        # -- Duration row --
+        # -- Duration row: label | slider | HH | MM | SS --
         dur_row = QHBoxLayout()
+        dur_row.setSpacing(4)
         lbl_d = QLabel("Duration:")
         lbl_d.setFixedWidth(58)
         self.dur_slider = QSlider(Qt.Orientation.Horizontal)
         self.dur_slider.setRange(1, 600)
         self.dur_slider.setValue(30)
-        self.dur_spin = QDoubleSpinBox()
-        self.dur_spin.setRange(0.1, 9999.0)
-        self.dur_spin.setValue(30.0)
-        self.dur_spin.setSuffix(" s")
-        self.dur_spin.setDecimals(1)
-        self.dur_spin.setFixedWidth(68)
+
+        self.dur_h = QSpinBox()
+        self.dur_h.setRange(0, 99)
+        self.dur_h.setValue(0)
+        self.dur_h.setSuffix("h")
+        self.dur_h.setMinimumWidth(52)
+
+        self.dur_m = QSpinBox()
+        self.dur_m.setRange(0, 59)
+        self.dur_m.setValue(0)
+        self.dur_m.setSuffix("m")
+        self.dur_m.setMinimumWidth(52)
+
+        self.dur_s = QSpinBox()
+        self.dur_s.setRange(0, 59)
+        self.dur_s.setValue(30)
+        self.dur_s.setSuffix("s")
+        self.dur_s.setMinimumWidth(52)
+
         dur_row.addWidget(lbl_d)
         dur_row.addWidget(self.dur_slider)
-        dur_row.addWidget(self.dur_spin)
+        dur_row.addWidget(self.dur_h)
+        dur_row.addWidget(self.dur_m)
+        dur_row.addWidget(self.dur_s)
 
         layout.addLayout(chunks_row)
         layout.addLayout(dur_row)
@@ -107,9 +123,31 @@ class ChunkDurationPanel(QWidget):
         self.chunks_slider.valueChanged.connect(self._chunks_slider_changed)
         self.chunks_spin.valueChanged.connect(self._chunks_spin_changed)
         self.dur_slider.valueChanged.connect(self._dur_slider_changed)
-        self.dur_spin.valueChanged.connect(self._dur_spin_changed)
+        self.dur_h.valueChanged.connect(self._dur_hms_changed)
+        self.dur_m.valueChanged.connect(self._dur_hms_changed)
+        self.dur_s.valueChanged.connect(self._dur_hms_changed)
 
     # -- Setters (keep both in sync without recursion) --
+
+    # -- Helpers --
+
+    def _hms_to_seconds(self) -> float:
+        return (
+            self.dur_h.value() * 3600
+            + self.dur_m.value() * 60
+            + self.dur_s.value()
+        )
+
+    def _seconds_to_hms(self, seconds: float):
+        seconds = max(0, int(round(seconds)))
+        h = seconds // 3600
+        m = (seconds % 3600) // 60
+        s = seconds % 60
+        self.dur_h.setValue(h)
+        self.dur_m.setValue(m)
+        self.dur_s.setValue(s)
+
+    # -- Setters (keep everything in sync without recursion) --
 
     def _apply_chunks(self, chunks: int):
         if self._busy:
@@ -121,7 +159,7 @@ class ChunkDurationPanel(QWidget):
         if self._total > 0:
             dur = self._total / chunks
             self.dur_slider.setValue(max(1, int(dur)))
-            self.dur_spin.setValue(round(dur, 1))
+            self._seconds_to_hms(dur)
         self._busy = False
         self.chunks_changed.emit(chunks)
 
@@ -129,9 +167,9 @@ class ChunkDurationPanel(QWidget):
         if self._busy:
             return
         self._busy = True
-        duration = max(0.1, duration)
+        duration = max(1.0, duration)
         self.dur_slider.setValue(max(1, int(duration)))
-        self.dur_spin.setValue(round(duration, 1))
+        self._seconds_to_hms(duration)
         if self._total > 0 and duration > 0:
             chunks = max(2, int(self._total / duration))
             self.chunks_slider.setValue(chunks)
@@ -153,9 +191,9 @@ class ChunkDurationPanel(QWidget):
         if not self._busy:
             self._apply_duration(float(val))
 
-    def _dur_spin_changed(self, val):
+    def _dur_hms_changed(self, _val):
         if not self._busy:
-            self._apply_duration(val)
+            self._apply_duration(self._hms_to_seconds())
 
     # -- Public --
 
@@ -165,7 +203,7 @@ class ChunkDurationPanel(QWidget):
         self.chunks_slider.setMaximum(max_chunks)
         self.chunks_spin.setMaximum(max_chunks)
         self.dur_slider.setMaximum(max(1, int(duration)))
-        self.dur_spin.setMaximum(duration)
+        self.dur_h.setMaximum(int(duration) // 3600)
         self._apply_chunks(4)
 
     @property
@@ -174,7 +212,7 @@ class ChunkDurationPanel(QWidget):
 
     @property
     def duration(self) -> float:
-        return self.dur_spin.value()
+        return self._hms_to_seconds()
 
 
 # ---------------------------------------------------------------------------

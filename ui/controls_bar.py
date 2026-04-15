@@ -34,7 +34,7 @@ class ControlsBar(QWidget):
         for btn in (self.play_btn, self.pause_btn):
             btn.setFixedSize(40, 40)
 
-        self.confirm_btn.setFixedSize(40, 40)
+        self.confirm_btn.setFixedSize(48, 40)
         self.confirm_btn.setObjectName("confirmBtn")
 
         # Monospace timer

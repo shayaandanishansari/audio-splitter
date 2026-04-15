@@ -12,6 +12,7 @@ Built with **PySide6** for a native, cross-platform desktop experience.
 - **Draggable split markers** — freely position black markers to define exact cut points; no snapping, full manual control
 - **Live playhead** — a red playhead moves in real-time during playback so you can preview before cutting
 - **Linked chunk/duration controls** — set the number of output chunks or target duration per chunk; both stay in sync and redistribute markers evenly
+- **Auto-transcription** — when a file is loaded, a transcript is automatically generated in the background using a local Whisper model (no API key needed)
 - **Reset to defaults** — one click restores evenly-spaced markers after manual adjustments
 - **Format preservation** — output format always matches the input (MP3 stays MP3, WAV stays WAV)
 
@@ -76,6 +77,22 @@ Files are saved into a subfolder inside the output directory, named after the so
 
 ---
 
+### Transcription
+
+When an audio file is loaded, a transcript is **automatically generated in the background** using [faster-whisper](https://github.com/SYSTRAN/faster-whisper) — no API key, runs entirely locally.
+
+The transcript is saved alongside the audio file as `<stem>.txt`:
+
+```
+[00:00.00] Hello everyone, welcome back to the podcast.
+[00:04.83] Today we're going to be talking about something really interesting.
+[00:09.12] Let's get into it.
+```
+
+A status indicator in the UI shows the transcription progress: `⏳ Transcribing...` → `✓ Transcript saved` → `⚠ Transcription failed`. The model runs on a background thread so the UI never freezes.
+
+---
+
 ## Building a Standalone Executable
 
 ```bash
@@ -95,7 +112,8 @@ audio_splitter/
 ├── core/
 │   ├── audio.py             # Audio loading, waveform extraction (numpy/soundfile)
 │   ├── player.py            # Playback engine (sounddevice)
-│   └── splitter.py          # Splitting logic (pydub)
+│   ├── splitter.py          # Splitting logic (pydub)
+│   └── transcriber.py       # faster-whisper transcription, saves <stem>.txt alongside audio
 ├── ui/
 │   ├── main_window.py       # Root window, layout, signal wiring
 │   ├── waveform_widget.py   # Custom widget — waveform painting, marker dragging
@@ -118,6 +136,7 @@ audio_splitter/
 | Audio Processing | [pydub](https://pypi.org/project/pydub/) |
 | Playback | [sounddevice](https://pypi.org/project/sounddevice/) |
 | WAV Loading | [soundfile](https://pypi.org/project/soundfile/) |
+| Transcription | [faster-whisper](https://pypi.org/project/faster-whisper/) |
 | Numerical Ops | [numpy](https://pypi.org/project/numpy/) |
 | Packaging | [PyInstaller](https://pypi.org/project/pyinstaller/) |
 

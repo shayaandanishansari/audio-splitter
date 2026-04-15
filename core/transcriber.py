@@ -23,7 +23,7 @@ def transcribe(file_path: str, model_size: str = DEFAULT_MODEL) -> str:
     transcript_path = path.with_suffix(".txt")
 
     model = WhisperModel(model_size, device="cpu", compute_type="int8")
-    segments, _info = model.transcribe(file_path, beam_size=5)
+    segments, _info = model.transcribe(file_path, beam_size=5, task="transcribe")
 
     lines = []
     for segment in segments:

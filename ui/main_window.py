@@ -18,16 +18,32 @@ from ui.controls_bar import ControlsBar
 from ui.input_panel import InputPanel
 from ui.waveform_widget import WaveformWidget
 
-WAVEFORM_RESOLUTION = 1200   # display columns
+WAVEFORM_RESOLUTION = 1200
 
 
 # ---------------------------------------------------------------------------
-# Background transcription worker
+# Background workers
 # ---------------------------------------------------------------------------
+
+class _LoadWorker(QObject):
+    finished = Signal(dict)
+    failed   = Signal(str)
+
+    def __init__(self, file_path: str):
+        super().__init__()
+        self._file_path = file_path
+
+    def run(self):
+        try:
+            data = load_audio(self._file_path)
+            self.finished.emit(data)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
 
 class _TranscriptionWorker(QObject):
-    finished = Signal(str)   # transcript file path
-    failed   = Signal(str)   # error message
+    finished = Signal(str)
+    failed   = Signal(str)
 
     def __init__(self, file_path: str):
         super().__init__()
@@ -39,6 +55,34 @@ class _TranscriptionWorker(QObject):
             self.finished.emit(path)
         except Exception as exc:
             self.failed.emit(str(exc))
+
+
+class _SplitWorker(QObject):
+    finished = Signal(list)   # list of output file paths
+    failed   = Signal(str)
+
+    def __init__(self, file_path: str, split_points: list, output_folder: str):
+        super().__init__()
+        self._file_path = file_path
+        self._split_points = split_points
+        self._output_folder = output_folder
+
+    def run(self):
+        try:
+            files = split_audio(self._file_path, self._split_points, self._output_folder)
+            self.finished.emit(files)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
+def _start_worker(worker: QObject, parent: QObject) -> QThread:
+    thread = QThread(parent)
+    worker.moveToThread(thread)
+    thread.started.connect(worker.run)
+    worker.finished.connect(thread.quit)   # type: ignore[attr-defined]
+    worker.failed.connect(thread.quit)     # type: ignore[attr-defined]
+    thread.start()
+    return thread
 
 
 # ---------------------------------------------------------------------------
@@ -53,8 +97,12 @@ class MainWindow(QMainWindow):
 
         self._audio_data: dict | None = None
         self._player = AudioPlayer()
+        self._load_thread: QThread | None = None
+        self._load_worker: _LoadWorker | None = None
         self._transcription_thread: QThread | None = None
         self._transcription_worker: _TranscriptionWorker | None = None
+        self._split_thread: QThread | None = None
+        self._split_worker: _SplitWorker | None = None
 
         self._setup_ui()
         self._apply_styles()
@@ -72,7 +120,6 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(22, 16, 22, 16)
         root.setSpacing(12)
 
-        # Title row
         title = QLabel("Audio Splitter")
         f = QFont()
         f.setPointSize(17)
@@ -80,13 +127,11 @@ class MainWindow(QMainWindow):
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         root.addWidget(title)
 
-        # Transcription status — subtle, right-aligned
-        self.transcript_status = QLabel("")
-        self.transcript_status.setAlignment(Qt.AlignmentFlag.AlignRight)
-        self.transcript_status.setObjectName("transcriptStatus")
-        root.addWidget(self.transcript_status)
+        self.status_label = QLabel("")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.status_label.setObjectName("statusLabel")
+        root.addWidget(self.status_label)
 
-        # Input panel
         self.input_panel = InputPanel()
         self.input_panel.file_selected.connect(self._on_file_selected)
         self.input_panel.folder_selected.connect(self._on_folder_selected)
@@ -94,14 +139,12 @@ class MainWindow(QMainWindow):
         self.input_panel.duration_changed.connect(self._on_duration_changed)
         root.addWidget(self.input_panel)
 
-        # Waveform
         self.waveform = WaveformWidget()
         self.waveform.marker_moved.connect(self._on_marker_moved)
         self.waveform.marker_selected.connect(self._on_marker_selected)
         self.waveform.seek_requested.connect(self._on_seek)
         root.addWidget(self.waveform, stretch=1)
 
-        # Controls
         self.controls = ControlsBar()
         self.controls.play_clicked.connect(self._on_play)
         self.controls.pause_clicked.connect(self._on_pause)
@@ -111,7 +154,7 @@ class MainWindow(QMainWindow):
 
     def _start_timer(self):
         self._timer = QTimer(self)
-        self._timer.setInterval(40)   # ~25 fps
+        self._timer.setInterval(40)
         self._timer.timeout.connect(self._tick)
         self._timer.start()
 
@@ -129,7 +172,7 @@ class MainWindow(QMainWindow):
                 color: #2a1818;
                 background: transparent;
             }
-            QLabel#transcriptStatus {
+            QLabel#statusLabel {
                 font-size: 11px;
                 color: #7a5555;
             }
@@ -146,6 +189,10 @@ class MainWindow(QMainWindow):
             }
             QPushButton:pressed {
                 background-color: #806060;
+            }
+            QPushButton:focus {
+                background-color: #9e8080;
+                outline: none;
             }
             QPushButton#confirmBtn {
                 background-color: #3aaa55;
@@ -183,27 +230,35 @@ class MainWindow(QMainWindow):
     # ------------------------------------------------------------------
 
     def _on_file_selected(self, path: str):
-        try:
-            self._audio_data = load_audio(path)
-        except Exception as exc:
-            QMessageBox.critical(self, "Load Error", str(exc))
-            return
+        if self._load_thread and self._load_thread.isRunning():
+            self._load_thread.quit()
+            self._load_thread.wait()
 
-        waveform = downsample_for_display(
-            self._audio_data["samples"], WAVEFORM_RESOLUTION
-        )
-        self.waveform.load_waveform(waveform, self._audio_data["duration"])
-        self._player.load(
-            self._audio_data["samples"],
-            self._audio_data["sample_rate"],
-            self._audio_data["duration"],
-        )
-        self.input_panel.set_total_duration(self._audio_data["duration"])
+        self.status_label.setText("⏳  Loading audio...")
+        self._audio_data = None
+
+        self._load_worker = _LoadWorker(path)
+        self._load_worker.finished.connect(self._on_load_done)
+        self._load_worker.failed.connect(self._on_load_failed)
+        self._load_thread = _start_worker(self._load_worker, self)
+
+    def _on_load_done(self, data: dict):
+        self._audio_data = data
+        self.status_label.setText("⏳  Transcribing...")
+
+        waveform = downsample_for_display(data["samples"], WAVEFORM_RESOLUTION)
+        self.waveform.load_waveform(waveform, data["duration"])
+        self._player.load(data["samples"], data["sample_rate"], data["duration"])
+        self.input_panel.set_total_duration(data["duration"])
         self._distribute_markers(self.input_panel.chunks)
-        self._start_transcription(path)
+        self._start_transcription(data["file_path"])
+
+    def _on_load_failed(self, error: str):
+        self.status_label.setText("")
+        QMessageBox.critical(self, "Load Error", error)
 
     def _on_folder_selected(self, path: str):
-        pass   # stored inside input_panel.output_folder
+        pass
 
     def _on_chunks_changed(self, chunks: int):
         if self._audio_data:
@@ -255,44 +310,52 @@ class MainWindow(QMainWindow):
         if not positions:
             QMessageBox.warning(self, "No Markers", "No split markers defined.")
             return
-        try:
-            files = split_audio(self._audio_data["file_path"], positions, out)
-            QMessageBox.information(
-                self, "Done",
-                f"Split into {len(files)} file(s).\n\nSaved to:\n{out}"
-            )
-        except Exception as exc:
-            QMessageBox.critical(self, "Split Error", str(exc))
+
+        self.controls.confirm_btn.setEnabled(False)
+        self.status_label.setText("⏳  Splitting audio...")
+
+        self._split_worker = _SplitWorker(
+            self._audio_data["file_path"], positions, out
+        )
+        self._split_worker.finished.connect(self._on_split_done)
+        self._split_worker.failed.connect(self._on_split_failed)
+        self._split_thread = _start_worker(self._split_worker, self)
+
+    def _on_split_done(self, files: list):
+        self.controls.confirm_btn.setEnabled(True)
+        out = self.input_panel.output_folder
+        self.status_label.setText(f"✓  Split into {len(files)} file(s)")
+        QMessageBox.information(
+            self, "Done",
+            f"Split into {len(files)} file(s).\n\nSaved to:\n{out}"
+        )
+
+    def _on_split_failed(self, error: str):
+        self.controls.confirm_btn.setEnabled(True)
+        self.status_label.setText("⚠  Split failed")
+        QMessageBox.critical(self, "Split Error", error)
 
     # ------------------------------------------------------------------
     # Transcription
     # ------------------------------------------------------------------
 
     def _start_transcription(self, file_path: str):
-        # Cancel any in-progress transcription for a previous file
         if self._transcription_thread and self._transcription_thread.isRunning():
             self._transcription_thread.quit()
             self._transcription_thread.wait()
 
-        self.transcript_status.setText("⏳  Transcribing...")
-
         self._transcription_worker = _TranscriptionWorker(file_path)
-        self._transcription_thread = QThread(self)
-        self._transcription_worker.moveToThread(self._transcription_thread)
-
-        self._transcription_thread.started.connect(self._transcription_worker.run)
         self._transcription_worker.finished.connect(self._on_transcription_done)
         self._transcription_worker.failed.connect(self._on_transcription_failed)
-        self._transcription_worker.finished.connect(self._transcription_thread.quit)
-        self._transcription_worker.failed.connect(self._transcription_thread.quit)
-
-        self._transcription_thread.start()
+        self._transcription_thread = _start_worker(self._transcription_worker, self)
 
     def _on_transcription_done(self, transcript_path: str):
-        self.transcript_status.setText(f"✓  Transcript saved → {Path(transcript_path).name}")
+        self.status_label.setText(
+            f"✓  Transcript saved → {Path(transcript_path).name}"
+        )
 
     def _on_transcription_failed(self, error: str):
-        self.transcript_status.setText(f"⚠  Transcription failed: {error}")
+        self.status_label.setText(f"⚠  Transcription failed: {error}")
 
     # ------------------------------------------------------------------
     # Helpers
@@ -315,7 +378,8 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self._player.stop()
-        if self._transcription_thread and self._transcription_thread.isRunning():
-            self._transcription_thread.quit()
-            self._transcription_thread.wait()
+        for thread in (self._load_thread, self._transcription_thread, self._split_thread):
+            if thread and thread.isRunning():
+                thread.quit()
+                thread.wait()
         super().closeEvent(event)

@@ -1,14 +1,34 @@
+import json
+import subprocess
 from pathlib import Path
 
-from pydub import AudioSegment
+
+def _get_duration(file_path: str) -> float:
+    """Use ffprobe to get the exact duration of an audio file in seconds."""
+    result = subprocess.run(
+        [
+            "ffprobe", "-v", "quiet",
+            "-print_format", "json",
+            "-show_format",
+            file_path,
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    info = json.loads(result.stdout)
+    return float(info["format"]["duration"])
 
 
 def split_audio(file_path: str, split_points: list[float], output_folder: str) -> list[str]:
     """
-    Split an audio file at the given time positions (in seconds).
+    Split an audio file at the given time positions (in seconds) using ffmpeg.
+
+    Uses stream copy (-c copy) so there is no re-encoding — splits are
+    instant and the output is bit-perfect.
 
     Creates a subfolder named after the source file inside output_folder and
-    writes each segment there as:  <stem>_001.<ext>, <stem>_002.<ext>, …
+    writes each segment as:  <stem>_001.<ext>, <stem>_002.<ext>, …
 
     The last segment may be shorter than the others — that is expected.
 
@@ -18,33 +38,30 @@ def split_audio(file_path: str, split_points: list[float], output_folder: str) -
     ext = path.suffix.lower().lstrip(".")
     stem = path.stem
 
-    if ext == "mp3":
-        audio = AudioSegment.from_mp3(file_path)
-    elif ext == "wav":
-        audio = AudioSegment.from_wav(file_path)
-    else:
+    if ext not in ("mp3", "wav"):
         raise ValueError(f"Unsupported format: {ext!r}")
 
-    # Output subfolder
     out_dir = Path(output_folder) / stem
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Build cut boundaries in milliseconds
-    total_ms = len(audio)
-    boundaries_ms = (
-        [0]
-        + [int(t * 1000) for t in sorted(split_points)]
-        + [total_ms]
-    )
+    total = _get_duration(file_path)
+    boundaries = [0.0] + sorted(split_points) + [total]
 
     output_files: list[str] = []
-    for idx, (start_ms, end_ms) in enumerate(
-        zip(boundaries_ms, boundaries_ms[1:]), start=1
-    ):
-        segment = audio[start_ms:end_ms]
-        filename = f"{stem}_{idx:03d}.{ext}"
-        out_path = str(out_dir / filename)
-        segment.export(out_path, format=ext)
+    for idx, (start, end) in enumerate(zip(boundaries, boundaries[1:]), start=1):
+        out_path = str(out_dir / f"{stem}_{idx:03d}.{ext}")
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-i", file_path,
+                "-ss", str(start),
+                "-to", str(end),
+                "-c", "copy",
+                out_path,
+            ],
+            check=True,
+            capture_output=True,
+        )
         output_files.append(out_path)
 
     return output_files

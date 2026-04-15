@@ -1,12 +1,17 @@
+import subprocess
+import tempfile
 from pathlib import Path
+
 import numpy as np
 import soundfile as sf
-from pydub import AudioSegment
 
 
 def load_audio(file_path: str) -> dict:
     """
     Load an audio file and return waveform data.
+
+    MP3 files are decoded to a temporary WAV via ffmpeg, then read with
+    soundfile. WAV files are read directly. No pydub / audioop required.
 
     Returns a dict with:
         samples     — mono float32 numpy array, normalized to [-1, 1]
@@ -18,32 +23,43 @@ def load_audio(file_path: str) -> dict:
     path = Path(file_path)
     ext = path.suffix.lower()
 
-    if ext == ".mp3":
-        audio = AudioSegment.from_mp3(file_path)
-        samples = np.array(audio.get_array_of_samples(), dtype=np.float32)
-        if audio.channels == 2:
-            samples = samples.reshape((-1, 2)).mean(axis=1)
-        # 16-bit PCM → normalize to [-1, 1]
-        samples /= 32768.0
-        sample_rate = audio.frame_rate
-        duration = len(audio) / 1000.0
-        fmt = "mp3"
+    if ext not in (".mp3", ".wav"):
+        raise ValueError(f"Unsupported format: {ext!r}. Only MP3 and WAV are supported.")
 
-    elif ext == ".wav":
+    if ext == ".wav":
         samples, sample_rate = sf.read(file_path, always_2d=False, dtype="float32")
         if samples.ndim == 2:
             samples = samples.mean(axis=1)
         duration = len(samples) / sample_rate
-        fmt = "wav"
 
-    else:
-        raise ValueError(f"Unsupported format: {ext!r}. Only MP3 and WAV are supported.")
+    else:  # .mp3 — decode via ffmpeg into a temp WAV
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            tmp_path = tmp.name
+        try:
+            subprocess.run(
+                [
+                    "ffmpeg", "-y",
+                    "-i", file_path,
+                    "-ac", "1",          # mix to mono
+                    "-ar", "44100",      # resample to 44.1 kHz
+                    "-f", "wav",
+                    tmp_path,
+                ],
+                check=True,
+                capture_output=True,
+            )
+            samples, sample_rate = sf.read(tmp_path, always_2d=False, dtype="float32")
+            if samples.ndim == 2:
+                samples = samples.mean(axis=1)
+            duration = len(samples) / sample_rate
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
 
     return {
         "samples": samples,
         "sample_rate": sample_rate,
         "duration": duration,
-        "format": fmt,
+        "format": ext.lstrip("."),
         "file_path": file_path,
     }
 
@@ -64,7 +80,6 @@ def downsample_for_display(samples: np.ndarray, target_width: int) -> np.ndarray
         if len(chunk) > 0:
             result[i] = np.max(np.abs(chunk))
 
-    # Normalize so the loudest peak = 1.0
     peak = result.max()
     if peak > 0:
         result /= peak
