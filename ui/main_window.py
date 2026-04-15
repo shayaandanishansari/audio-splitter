@@ -47,13 +47,18 @@ class _TranscriptionWorker(QObject):
     failed   = Signal(str)
     progress = Signal(int)   # 0-100
 
-    def __init__(self, file_path: str):
+    def __init__(self, file_path: str, output_folder: str | None = None):
         super().__init__()
         self._file_path = file_path
+        self._output_folder = output_folder
 
     def run(self):
         try:
-            path = transcribe(self._file_path, progress_callback=self.progress.emit)
+            path = transcribe(
+                self._file_path,
+                output_folder=self._output_folder,
+                progress_callback=self.progress.emit,
+            )
             self.finished.emit(path)
         except Exception as exc:
             self.failed.emit(str(exc))
@@ -158,6 +163,7 @@ class MainWindow(QMainWindow):
         self.controls = ControlsBar()
         self.controls.play_clicked.connect(self._on_play)
         self.controls.pause_clicked.connect(self._on_pause)
+        self.controls.transcribe_clicked.connect(self._on_transcribe)
         self.controls.reset_clicked.connect(self._on_reset)
         self.controls.confirm_clicked.connect(self._on_confirm)
         root.addWidget(self.controls)
@@ -263,14 +269,13 @@ class MainWindow(QMainWindow):
 
     def _on_load_done(self, data: dict):
         self._audio_data = data
-        self.status_label.setText("⏳  Transcribing...")
+        self.status_label.setText("")
 
         waveform = downsample_for_display(data["samples"], WAVEFORM_RESOLUTION)
         self.waveform.load_waveform(waveform, data["duration"])
         self._player.load(data["samples"], data["sample_rate"], data["duration"])
         self.input_panel.set_total_duration(data["duration"])
         self._distribute_markers(self.input_panel.chunks)
-        self._start_transcription(data["file_path"])
 
     def _on_load_failed(self, error: str):
         self.status_label.setText("")
@@ -358,12 +363,23 @@ class MainWindow(QMainWindow):
     # Transcription
     # ------------------------------------------------------------------
 
-    def _start_transcription(self, file_path: str):
+    def _on_transcribe(self):
+        if self._audio_data is None:
+            QMessageBox.warning(self, "No File", "Please select an audio file first.")
+            return
+        self.controls.transcribe_btn.setEnabled(False)
+        self._start_transcription(
+            self._audio_data["file_path"],
+            self.input_panel.output_folder or None,
+        )
+
+    def _start_transcription(self, file_path: str, output_folder: str | None = None):
         if self._transcription_thread and self._transcription_thread.isRunning():
             self._transcription_thread.quit()
             self._transcription_thread.wait()
 
-        self._transcription_worker = _TranscriptionWorker(file_path)
+        self.status_label.setText("⏳  Transcribing...")
+        self._transcription_worker = _TranscriptionWorker(file_path, output_folder)
         self._transcription_worker.finished.connect(self._on_transcription_done)
         self._transcription_worker.failed.connect(self._on_transcription_failed)
         self._transcription_worker.progress.connect(self._on_transcription_progress)
@@ -377,6 +393,7 @@ class MainWindow(QMainWindow):
     def _on_transcription_done(self, transcript_path: str):
         self.progress_bar.hide()
         self.progress_bar.setValue(0)
+        self.controls.transcribe_btn.setEnabled(True)
         self.status_label.setText(
             f"✓  Transcript saved → {Path(transcript_path).name}"
         )
@@ -384,6 +401,7 @@ class MainWindow(QMainWindow):
     def _on_transcription_failed(self, error: str):
         self.progress_bar.hide()
         self.progress_bar.setValue(0)
+        self.controls.transcribe_btn.setEnabled(True)
         self.status_label.setText(f"⚠  Transcription failed: {error}")
 
     # ------------------------------------------------------------------

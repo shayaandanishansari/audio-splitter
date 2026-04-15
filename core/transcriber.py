@@ -19,12 +19,16 @@ def _get_model(model_size: str = DEFAULT_MODEL) -> WhisperModel:
 
 def transcribe(
     file_path: str,
+    output_folder: Optional[str] = None,
     model_size: str = DEFAULT_MODEL,
     progress_callback: Optional[Callable[[int], None]] = None,
 ) -> str:
     """
     Transcribe an audio file using faster-whisper and save a timestamped
-    transcript as <stem>.txt in the same directory as the audio file.
+    transcript as <stem>.txt.
+
+    output_folder: where to save the transcript. Defaults to the same
+    directory as the audio file if not provided.
 
     progress_callback is called with an integer 0-100 as each segment
     is processed, derived from segment.end / total_duration.
@@ -32,10 +36,13 @@ def transcribe(
     Returns the path to the saved transcript file.
     """
     path = Path(file_path)
-    transcript_path = path.with_suffix(".txt")
+    out_dir = Path(output_folder) if output_folder else path.parent
+    transcript_path = out_dir / path.with_suffix(".txt").name
 
     model = _get_model(model_size)
-    segments, info = model.transcribe(file_path, beam_size=5, task="transcribe")
+    segments, info = model.transcribe(
+        file_path, beam_size=5, task="transcribe", language=None
+    )
     total_duration = info.duration or 1.0  # avoid division by zero
 
     lines = []

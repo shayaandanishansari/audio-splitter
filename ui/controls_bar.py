@@ -10,10 +10,11 @@ class ControlsBar(QWidget):
     Bottom bar:  [Play]  [Pause]  ···  [timer]  ···  [Reset]  [Confirm ✓]
     """
 
-    play_clicked    = Signal()
-    pause_clicked   = Signal()
-    reset_clicked   = Signal()
-    confirm_clicked = Signal()
+    play_clicked        = Signal()
+    pause_clicked       = Signal()
+    reset_clicked       = Signal()
+    confirm_clicked     = Signal()
+    transcribe_clicked  = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -24,13 +25,13 @@ class ControlsBar(QWidget):
         layout.setContentsMargins(8, 6, 8, 6)
         layout.setSpacing(8)
 
-        self.play_btn    = QPushButton("▶")
-        self.pause_btn   = QPushButton("⏸")
-        self.timer_label = QLabel("00:00.00")
-        self.reset_btn   = QPushButton("↺  Reset")
-        self.confirm_btn = QPushButton("✓")
+        self.play_btn       = QPushButton("▶")
+        self.pause_btn      = QPushButton("⏸")
+        self.timer_label    = QLabel("00:00.00")
+        self.transcribe_btn = QPushButton("⌨  Transcribe")
+        self.reset_btn      = QPushButton("↺  Reset")
+        self.confirm_btn    = QPushButton("✓")
 
-        # Fixed widths for icon buttons
         for btn in (self.play_btn, self.pause_btn):
             btn.setFixedSize(40, 40)
 
@@ -48,11 +49,13 @@ class ControlsBar(QWidget):
         layout.addStretch()
         layout.addWidget(self.timer_label)
         layout.addStretch()
+        layout.addWidget(self.transcribe_btn)
         layout.addWidget(self.reset_btn)
         layout.addWidget(self.confirm_btn)
 
         self.play_btn.clicked.connect(self.play_clicked)
         self.pause_btn.clicked.connect(self.pause_clicked)
+        self.transcribe_btn.clicked.connect(self.transcribe_clicked)
         self.reset_btn.clicked.connect(self.reset_clicked)
         self.confirm_btn.clicked.connect(self.confirm_clicked)
 
