@@ -16,14 +16,8 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - id: tag
-        run: |
-          SHA=$(git rev-parse --short HEAD)
-          DATE=$(date +%Y%m%d)
-          echo "tag=v0.1.0-dev-${DATE}-${SHA}" >> "$GITHUB_OUTPUT"
+        run: echo "tag=release-${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
   # ------------------------------------------------------------------
   # Windows — PyInstaller → .exe (ffmpeg installed via choco)
@@ -36,7 +30,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
 
       - name: Install ffmpeg
         run: choco install ffmpeg -y
@@ -66,7 +60,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.14"
 
       - name: Install ffmpeg
         run: |
@@ -110,7 +104,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.version.outputs.tag }}
-          name: "Dev Build ${{ needs.version.outputs.tag }}"
+          name: "Release ${{ github.run_number }}"
           body: |
             Automatic dev build from `main` branch.
 

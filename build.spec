@@ -12,8 +12,8 @@ a = Analysis(
     hiddenimports=[
         'sounddevice',
         'soundfile',
-        'pydub',
         'numpy',
+        'faster_whisper',
     ],
     hookspath=[],
     hooksconfig={},

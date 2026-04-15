@@ -43,9 +43,9 @@ python main.py
 
 Audio Splitter relies on two external components that are **not** Python packages:
 
-### 1. `ffmpeg` — Required for audio loading and export
+### 1. `ffmpeg` — Required for audio loading and splitting
 
-`pydub` (the library handling audio decode and splitting) shells out to the `ffmpeg` binary. Without it, MP3/WAV loading and chunk export will fail.
+Audio Splitter calls `ffmpeg` directly via subprocess for all audio decoding and splitting. Without it, MP3/WAV loading and chunk export will fail.
 
 **Installing ffmpeg:**
 
@@ -63,7 +63,7 @@ ffmpeg -version
 
 ### 2. Faster-Whisper model — Required for transcription
 
-When you load an audio file, transcription starts automatically in the background. This uses the [`faster-whisper`](https://github.com/SYSTRAN/faster-whisper) library, which downloads the Whisper model weights on first use.
+Transcription is triggered manually via the **⌨ Transcribe** button. On first use, `faster-whisper` downloads the Whisper model weights from Hugging Face.
 
 - **Default model**: `base` (~140 MB download)
 - **Where it's cached**:
@@ -108,18 +108,18 @@ pyinstaller build.spec
 
 Output: `dist/AudioSplitter.exe` (Windows) or `dist/AudioSplitter` (Linux/macOS)
 
-This binary includes all Python dependencies and UI assets. However:
+This binary includes all Python dependencies. However:
 
 - **`ffmpeg` is NOT bundled** — it must be available on the target system's PATH, or placed alongside the `.exe`
-- **Whisper model is NOT bundled** — it downloads at first transcription run
+- **Whisper model is NOT bundled** — it downloads on first transcription run
 
 ### Bundling ffmpeg (recommended for releases)
 
-To make the `.exe` fully self-contained for the splitting feature, bundle a static `ffmpeg` binary:
+To make the `.exe` fully self-contained, bundle a static `ffmpeg` binary:
 
 1. Download a static ffmpeg build for your platform (e.g., from [gyan.dev](https://www.gyan.dev/ffmpeg/builds/))
 2. Place `ffmpeg.exe` in the project root (or a `bin/` folder)
-3. Update `build.spec` to include it in the `datas` or `binaries` field:
+3. Update `build.spec` to include it in the `binaries` field:
 
 ```python
 a = Analysis(
@@ -131,22 +131,21 @@ a = Analysis(
 )
 ```
 
-4. In your code, point `pydub` to the bundled ffmpeg:
+4. In `main.py`, point subprocess calls to the bundled binary at runtime:
 
 ```python
 import sys
+import os
 from pathlib import Path
-from pydub import AudioSegment
 
 if getattr(sys, 'frozen', False):
-    # Running as compiled .exe — use bundled ffmpeg
-    ffmpeg_path = Path(sys._MEIPASS) / 'ffmpeg.exe'
-    AudioSegment.converter = str(ffmpeg_path)
+    # Running as compiled .exe — add bundled ffmpeg to PATH
+    os.environ['PATH'] = str(Path(sys._MEIPASS)) + os.pathsep + os.environ.get('PATH', '')
 ```
 
 5. Rebuild: `pyinstaller build.spec --clean`
 
-The resulting `.exe` will work for splitting without requiring a system ffmpeg. Transcription still downloads the Whisper model at runtime (expected behavior).
+The resulting `.exe` will work for splitting without requiring a system ffmpeg. Transcription still downloads the Whisper model at runtime (expected behaviour).
 
 ---
 
@@ -170,11 +169,8 @@ Audio Splitter uses GitHub Actions (`.github/workflows/build-release.yml`) to bu
 
 ### Building locally with the same config
 
-The CI installs ffmpeg before building, so the build environment matches a real user setup. If you want to test locally:
-
 ```bash
-# Install ffmpeg first
-# Then build
+# Install ffmpeg first, then:
 pip install -r requirements.txt pyinstaller
 pyinstaller build.spec --clean
 ```
@@ -183,17 +179,17 @@ pyinstaller build.spec --clean
 
 ## Troubleshooting
 
-### "ffmpeg not found" or audio export fails
+### "ffmpeg not found" or audio fails to load/export
 
 - Verify ffmpeg is installed: `ffmpeg -version`
 - If using a bundled build, check that `ffmpeg.exe` is in the same directory as the `.exe`
-- On Windows, try adding ffmpeg to your PATH or restarting the app
+- On Windows, try adding ffmpeg to your PATH or restarting the terminal
 
 ### Transcription never starts or crashes
 
-- Check internet connection (model download needs network)
+- Check internet connection on first use (model download needs network)
 - Pre-download the model manually (see above) to verify it works
-- Check disk space — the `base` model needs ~140 MB cached + ~300 MB temporary
+- Check disk space — the `base` model needs ~140 MB cached
 
 ### Windows SmartScreen warning on the .exe
 
@@ -215,9 +211,9 @@ pyinstaller build.spec --clean
 
 | Feature | From Source | Standalone .exe |
 |---|---|---|
-| Requires Python | Yes (3.12+) | No |
+| Requires Python | Yes (3.13+) | No |
 | Requires ffmpeg | Yes | Yes (unless bundled) |
-| Whisper model | Downloads on first run | Downloads on first run |
+| Whisper model | Downloads on first transcription | Downloads on first transcription |
 | Editable code | Yes | No |
 | Quick to start dev | `pip install -r requirements.txt` | N/A |
 | Best for | Development, customization | Distribution, end users |
