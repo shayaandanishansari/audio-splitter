@@ -3,6 +3,10 @@ name: Build & Release
 on:
   push:
     branches: [main]
+    paths:
+      - '**.py'
+      - 'requirements.txt'
+      - 'build.spec'
 
 permissions:
   contents: write
