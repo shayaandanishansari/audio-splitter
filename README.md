@@ -21,9 +21,7 @@ Built with **PySide6** for a native desktop experience.
 ---
 
 ## Screenshot
-
-*(Add a screenshot or GIF here once available)*
-
+![img.png](assets/docs/img.png)
 ---
 
 ## Requirements
