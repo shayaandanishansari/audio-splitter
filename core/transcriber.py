@@ -1,6 +1,9 @@
+import sys
 import threading
 from pathlib import Path
 from typing import Callable, Optional
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from faster_whisper import WhisperModel
 
