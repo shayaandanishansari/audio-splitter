@@ -25,6 +25,7 @@ def transcribe(
     file_path: str,
     output_folder: Optional[str] = None,
     model_size: str = DEFAULT_MODEL,
+    language: Optional[str] = None,
     progress_callback: Optional[Callable[[int], None]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> str:
@@ -49,7 +50,7 @@ def transcribe(
 
     model = _get_model(model_size)
     segments, info = model.transcribe(
-        file_path, beam_size=5, task="transcribe", language=None
+        file_path, beam_size=5, task="transcribe", language=language
     )
     total_duration = info.duration or 1.0  # avoid division by zero
 
@@ -68,20 +69,21 @@ def transcribe(
 
 
 if __name__ == "__main__":
+    import argparse
     import json
     import os
-    import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-    if len(sys.argv) < 2:
-        print(json.dumps({"error": "Usage: python core/transcriber.py <file_path>"}))
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Transcribe an audio file")
+    parser.add_argument("file_path", help="Path to the audio file")
+    parser.add_argument("--language", default=None, help="Language code, e.g. 'ur', 'en' (default: auto-detect)")
+    args = parser.parse_args()
 
     try:
         result = transcribe(
-            file_path=sys.argv[1],
+            file_path=args.file_path,
             output_folder=os.environ.get("OUTPUT_FOLDER") or None,
             model_size=os.environ.get("WHISPER_MODEL", DEFAULT_MODEL),
+            language=args.language,
         )
         print(json.dumps({"transcript_path": result}))
     except Exception as e:

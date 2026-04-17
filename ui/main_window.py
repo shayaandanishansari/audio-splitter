@@ -48,10 +48,11 @@ class _TranscriptionWorker(QObject):
     failed   = Signal(str)
     progress = Signal(int)   # 0-100
 
-    def __init__(self, file_path: str, output_folder: str | None = None):
+    def __init__(self, file_path: str, output_folder: str | None = None, language: str | None = None):
         super().__init__()
         self._file_path = file_path
         self._output_folder = output_folder
+        self._language = language
         self._stop_event = threading.Event()
 
     def cancel(self):
@@ -62,6 +63,7 @@ class _TranscriptionWorker(QObject):
             path = transcribe(
                 self._file_path,
                 output_folder=self._output_folder,
+                language=self._language,
                 progress_callback=self.progress.emit,
                 stop_event=self._stop_event,
             )
@@ -111,6 +113,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(720, 500)
 
         self._audio_data: dict | None = None
+        self._language: str | None = None
         self._player = AudioPlayer()
         self._load_thread: QThread | None = None
         self._load_worker: _LoadWorker | None = None
@@ -160,6 +163,7 @@ class MainWindow(QMainWindow):
         self.input_panel.folder_selected.connect(self._on_folder_selected)
         self.input_panel.chunks_changed.connect(self._on_chunks_changed)
         self.input_panel.duration_changed.connect(self._on_duration_changed)
+        self.input_panel.language_changed.connect(self._on_language_changed)
         root.addWidget(self.input_panel)
 
         self.waveform = WaveformWidget()
@@ -395,6 +399,9 @@ class MainWindow(QMainWindow):
     # Transcription
     # ------------------------------------------------------------------
 
+    def _on_language_changed(self, language):
+        self._language = language
+
     def _on_transcribe(self):
         if self._audio_data is None:
             QMessageBox.warning(self, "No File", "Please select an audio file first.")
@@ -404,19 +411,20 @@ class MainWindow(QMainWindow):
         self._start_transcription(
             self._audio_data["file_path"],
             self.input_panel.output_folder or None,
+            self._language,
         )
 
     def _on_stop_transcription(self):
         if self._transcription_worker:
             self._transcription_worker.cancel()
 
-    def _start_transcription(self, file_path: str, output_folder: str | None = None):
+    def _start_transcription(self, file_path: str, output_folder: str | None = None, language: str | None = None):
         if self._transcription_thread and self._transcription_thread.isRunning():
             self._transcription_thread.quit()
             self._transcription_thread.wait()
 
         self.status_label.setText("⏳  Transcribing...")
-        self._transcription_worker = _TranscriptionWorker(file_path, output_folder)
+        self._transcription_worker = _TranscriptionWorker(file_path, output_folder, language)
         self._transcription_worker.finished.connect(self._on_transcription_done)
         self._transcription_worker.failed.connect(self._on_transcription_failed)
         self._transcription_worker.progress.connect(self._on_transcription_progress)

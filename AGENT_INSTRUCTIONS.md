@@ -82,11 +82,14 @@ Output folder respects `$OUTPUT_FOLDER`. Files are named `<stem>_001.<ext>`, `<s
 
 ```bash
 python core/transcriber.py podcast.mp3
+python core/transcriber.py podcast.mp3 --language ur
 ```
 
 ```json
 {"transcript_path": "podcast.txt"}
 ```
+
+`--language` accepts any Whisper language code (e.g. `ur`, `en`, `fr`). Omit it to auto-detect. See the full list at the bottom of this file.
 
 Transcript is saved as `<stem>.txt` alongside the audio file (or in `$OUTPUT_FOLDER` if set). Before transcribing, check if `<stem>.txt` already exists — if it does, skip this step.
 
@@ -131,3 +134,55 @@ All scripts return `{"error": "<message>"}` and exit with code 1 on failure. Com
 - `ffmpeg` not on PATH
 - Input file not found or unsupported format (only MP3 and WAV are supported)
 - `$WHISPER_MODEL` set to an invalid size
+
+---
+
+## Whisper Language Codes
+
+Pass any of these to `--language`. Omit for auto-detect.
+
+| Code | Language | Code | Language | Code | Language |
+|------|----------|------|----------|------|----------|
+| `af` | Afrikaans | `gl` | Galician | `pt` | Portuguese |
+| `am` | Amharic | `gu` | Gujarati | `ro` | Romanian |
+| `ar` | Arabic | `ha` | Hausa | `ru` | Russian |
+| `as` | Assamese | `haw` | Hawaiian | `sa` | Sanskrit |
+| `az` | Azerbaijani | `he` | Hebrew | `sd` | Sindhi |
+| `ba` | Bashkir | `hi` | Hindi | `si` | Sinhala |
+| `be` | Belarusian | `hr` | Croatian | `sk` | Slovak |
+| `bg` | Bulgarian | `ht` | Haitian Creole | `sl` | Slovenian |
+| `bn` | Bengali | `hu` | Hungarian | `sn` | Shona |
+| `bo` | Tibetan | `hy` | Armenian | `so` | Somali |
+| `br` | Breton | `id` | Indonesian | `sq` | Albanian |
+| `bs` | Bosnian | `is` | Icelandic | `sr` | Serbian |
+| `ca` | Catalan | `it` | Italian | `su` | Sundanese |
+| `cs` | Czech | `ja` | Japanese | `sv` | Swedish |
+| `cy` | Welsh | `jw` | Javanese | `sw` | Swahili |
+| `da` | Danish | `ka` | Georgian | `ta` | Tamil |
+| `de` | German | `kk` | Kazakh | `te` | Telugu |
+| `el` | Greek | `km` | Khmer | `tg` | Tajik |
+| `en` | English | `kn` | Kannada | `th` | Thai |
+| `es` | Spanish | `ko` | Korean | `tk` | Turkmen |
+| `et` | Estonian | `la` | Latin | `tl` | Tagalog |
+| `eu` | Basque | `lb` | Luxembourgish | `tr` | Turkish |
+| `fa` | Persian | `ln` | Lingala | `tt` | Tatar |
+| `fi` | Finnish | `lo` | Lao | `uk` | Ukrainian |
+| `fo` | Faroese | `lt` | Lithuanian | `ur` | Urdu |
+| `fr` | French | `lv` | Latvian | `uz` | Uzbek |
+| `fry` | Frisian | `mg` | Malagasy | `vi` | Vietnamese |
+| `ga` | Irish | `mi` | Maori | `yi` | Yiddish |
+| | | `mk` | Macedonian | `yo` | Yoruba |
+| | | `ml` | Malayalam | `yue` | Cantonese |
+| | | `mn` | Mongolian | `zh` | Chinese |
+| | | `mr` | Marathi | | |
+| | | `ms` | Malay | | |
+| | | `mt` | Maltese | | |
+| | | `my` | Myanmar | | |
+| | | `ne` | Nepali | | |
+| | | `nl` | Dutch | | |
+| | | `nn` | Nynorsk | | |
+| | | `no` | Norwegian | | |
+| | | `oc` | Occitan | | |
+| | | `pa` | Punjabi | | |
+| | | `pl` | Polish | | |
+| | | `ps` | Pashto | | |

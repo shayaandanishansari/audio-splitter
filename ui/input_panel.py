@@ -3,6 +3,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
+    QComboBox,
     QDoubleSpinBox,
     QFileDialog,
     QHBoxLayout,
@@ -13,6 +14,110 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+_LANGUAGES = [
+    ("Auto-detect", None),
+    ("Afrikaans", "af"),
+    ("Albanian", "sq"),
+    ("Amharic", "am"),
+    ("Arabic", "ar"),
+    ("Armenian", "hy"),
+    ("Assamese", "as"),
+    ("Azerbaijani", "az"),
+    ("Bashkir", "ba"),
+    ("Basque", "eu"),
+    ("Belarusian", "be"),
+    ("Bengali", "bn"),
+    ("Bosnian", "bs"),
+    ("Breton", "br"),
+    ("Bulgarian", "bg"),
+    ("Cantonese", "yue"),
+    ("Catalan", "ca"),
+    ("Chinese", "zh"),
+    ("Croatian", "hr"),
+    ("Czech", "cs"),
+    ("Danish", "da"),
+    ("Dutch", "nl"),
+    ("English", "en"),
+    ("Estonian", "et"),
+    ("Faroese", "fo"),
+    ("Finnish", "fi"),
+    ("French", "fr"),
+    ("Galician", "gl"),
+    ("Georgian", "ka"),
+    ("German", "de"),
+    ("Greek", "el"),
+    ("Gujarati", "gu"),
+    ("Haitian Creole", "ht"),
+    ("Hausa", "ha"),
+    ("Hawaiian", "haw"),
+    ("Hebrew", "he"),
+    ("Hindi", "hi"),
+    ("Hungarian", "hu"),
+    ("Icelandic", "is"),
+    ("Indonesian", "id"),
+    ("Italian", "it"),
+    ("Japanese", "ja"),
+    ("Javanese", "jw"),
+    ("Kannada", "kn"),
+    ("Kazakh", "kk"),
+    ("Khmer", "km"),
+    ("Korean", "ko"),
+    ("Lao", "lo"),
+    ("Latin", "la"),
+    ("Latvian", "lv"),
+    ("Lingala", "ln"),
+    ("Lithuanian", "lt"),
+    ("Luxembourgish", "lb"),
+    ("Macedonian", "mk"),
+    ("Malagasy", "mg"),
+    ("Malay", "ms"),
+    ("Malayalam", "ml"),
+    ("Maltese", "mt"),
+    ("Maori", "mi"),
+    ("Marathi", "mr"),
+    ("Mongolian", "mn"),
+    ("Myanmar", "my"),
+    ("Nepali", "ne"),
+    ("Norwegian", "no"),
+    ("Nynorsk", "nn"),
+    ("Occitan", "oc"),
+    ("Pashto", "ps"),
+    ("Persian", "fa"),
+    ("Polish", "pl"),
+    ("Portuguese", "pt"),
+    ("Punjabi", "pa"),
+    ("Romanian", "ro"),
+    ("Russian", "ru"),
+    ("Sanskrit", "sa"),
+    ("Serbian", "sr"),
+    ("Shona", "sn"),
+    ("Sindhi", "sd"),
+    ("Sinhala", "si"),
+    ("Slovak", "sk"),
+    ("Slovenian", "sl"),
+    ("Somali", "so"),
+    ("Spanish", "es"),
+    ("Sundanese", "su"),
+    ("Swahili", "sw"),
+    ("Swedish", "sv"),
+    ("Tagalog", "tl"),
+    ("Tajik", "tg"),
+    ("Tamil", "ta"),
+    ("Tatar", "tt"),
+    ("Telugu", "te"),
+    ("Thai", "th"),
+    ("Tibetan", "bo"),
+    ("Turkish", "tr"),
+    ("Turkmen", "tk"),
+    ("Ukrainian", "uk"),
+    ("Urdu", "ur"),
+    ("Uzbek", "uz"),
+    ("Vietnamese", "vi"),
+    ("Welsh", "cy"),
+    ("Yiddish", "yi"),
+    ("Yoruba", "yo"),
+]
 
 
 def _make_spin(spin: QSpinBox, row: QHBoxLayout, suffix: str = "") -> None:
@@ -256,6 +361,7 @@ class InputPanel(QWidget):
     folder_selected  = Signal(str)
     chunks_changed   = Signal(int)
     duration_changed = Signal(float)
+    language_changed = Signal(object)  # str | None
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -278,11 +384,24 @@ class InputPanel(QWidget):
         self.folder_btn = PickerButton("📁  Output Folder?", "📁")
         self.folder_btn.setFixedHeight(36)
 
+        # Language selector
+        lang_row = QHBoxLayout()
+        lang_row.setSpacing(6)
+        lang_lbl = QLabel("Language:")
+        lang_lbl.setFixedWidth(58)
+        self.lang_combo = QComboBox()
+        for name, _ in _LANGUAGES:
+            self.lang_combo.addItem(name)
+        self.lang_combo.currentIndexChanged.connect(self._on_language_changed)
+        lang_row.addWidget(lang_lbl)
+        lang_row.addWidget(self.lang_combo)
+
         self.chunk_panel = ChunkDurationPanel()
         self.chunk_panel.chunks_changed.connect(self.chunks_changed)
         self.chunk_panel.duration_changed.connect(self.duration_changed)
 
         right.addWidget(self.folder_btn)
+        right.addLayout(lang_row)
         right.addWidget(self.chunk_panel)
 
         layout.addWidget(self.file_btn)
@@ -291,6 +410,9 @@ class InputPanel(QWidget):
 
         self.file_btn.clicked.connect(self._pick_file)
         self.folder_btn.clicked.connect(self._pick_folder)
+
+    def _on_language_changed(self, index: int):
+        self.language_changed.emit(_LANGUAGES[index][1])
 
     def _pick_file(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -319,3 +441,7 @@ class InputPanel(QWidget):
     @property
     def chunks(self) -> int:
         return self.chunk_panel.chunks
+
+    @property
+    def language(self):
+        return _LANGUAGES[self.lang_combo.currentIndex()][1]
