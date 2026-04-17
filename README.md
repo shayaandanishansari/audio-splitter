@@ -136,7 +136,7 @@ audio_splitter/
 ├── utils/
 │   └── time_format.py       # Timestamp formatting (seconds → MM:SS.cs)
 ├── build.spec               # PyInstaller spec
-├── CLAUDE.md                # Full project brief and agent API design
+├── AGENT_INSTRUCTIONS.md    # Agent usage guide (core scripts, workflows, env vars)
 └── LICENSE.md               # LM Stick Non-Commercial License
 ```
 
@@ -156,10 +156,9 @@ All heavy operations (file loading, transcription, splitting) run on background 
 
 ---
 
-## Planned
+## Agent Usage
 
-- Agent-usable CLI (`cli.py`) and Python API (`agent_api.py`) — see `CLAUDE.md` for full design
-- Intelligent splitting: agent reads transcript and reasons about natural split points rather than equal-duration chunks
+The `core/` scripts are directly runnable by agents — see `AGENT_INSTRUCTIONS.md` for commands, env vars, and workflows including intelligent content-aware splitting via transcript.
 
 ---
 
