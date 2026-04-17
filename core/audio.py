@@ -85,3 +85,24 @@ def downsample_for_display(samples: np.ndarray, target_width: int) -> np.ndarray
         result /= peak
 
     return result
+
+
+if __name__ == "__main__":
+    import json
+    import sys
+
+    if len(sys.argv) < 2:
+        print(json.dumps({"error": "Usage: python core/audio.py <file_path>"}))
+        sys.exit(1)
+
+    try:
+        result = load_audio(sys.argv[1])
+        print(json.dumps({
+            "duration": result["duration"],
+            "format": result["format"],
+            "sample_rate": result["sample_rate"],
+            "file_path": result["file_path"],
+        }))
+    except Exception as e:
+        print(json.dumps({"error": str(e)}))
+        sys.exit(1)

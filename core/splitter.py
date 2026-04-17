@@ -65,3 +65,39 @@ def split_audio(file_path: str, split_points: list[float], output_folder: str) -
         output_files.append(out_path)
 
     return output_files
+
+
+if __name__ == "__main__":
+    import argparse
+    import json
+    import os
+    import sys
+
+    parser = argparse.ArgumentParser(description="Split an audio file")
+    parser.add_argument("file_path", help="Path to the audio file")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--chunks", type=int, help="Number of equal chunks")
+    group.add_argument("--duration", type=float, help="Target duration per chunk in seconds")
+    group.add_argument("--at", type=str, help="Comma-separated split timestamps in seconds (e.g. 30,75.5,120)")
+    args = parser.parse_args()
+
+    output_folder = os.environ.get("OUTPUT_FOLDER") or str(Path(args.file_path).parent)
+
+    try:
+        total = _get_duration(args.file_path)
+
+        if args.chunks is not None:
+            n = args.chunks
+            split_points = [total * i / n for i in range(1, n)]
+        elif args.duration is not None:
+            d = args.duration
+            n_chunks = int(total / d)
+            split_points = [d * i for i in range(1, n_chunks)]
+        else:
+            split_points = [float(x.strip()) for x in args.at.split(",")]
+
+        files = split_audio(args.file_path, split_points, output_folder)
+        print(json.dumps({"files": files, "chunks": len(files)}))
+    except Exception as e:
+        print(json.dumps({"error": str(e)}))
+        sys.exit(1)

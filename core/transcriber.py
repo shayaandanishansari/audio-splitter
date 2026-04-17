@@ -62,3 +62,25 @@ def transcribe(
 
     transcript_path.write_text("\n".join(lines), encoding="utf-8")
     return str(transcript_path)
+
+
+if __name__ == "__main__":
+    import json
+    import os
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+    if len(sys.argv) < 2:
+        print(json.dumps({"error": "Usage: python core/transcriber.py <file_path>"}))
+        sys.exit(1)
+
+    try:
+        result = transcribe(
+            file_path=sys.argv[1],
+            output_folder=os.environ.get("OUTPUT_FOLDER") or None,
+            model_size=os.environ.get("WHISPER_MODEL", DEFAULT_MODEL),
+        )
+        print(json.dumps({"transcript_path": result}))
+    except Exception as e:
+        print(json.dumps({"error": str(e)}))
+        sys.exit(1)
