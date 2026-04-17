@@ -1,4 +1,4 @@
-# LM Stick License (Non-Commercial)
+# Audio Splitter (Non-Commercial)
 
 Copyright (c) 2026 Shayaan Danish Ansari
 
