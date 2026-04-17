@@ -101,6 +101,8 @@ Saved alongside the audio as `<stem>.txt`:
 
 Transcription always outputs in the **original language** of the audio (no auto-translation).
 
+For best results, select the audio's language from the **Language** dropdown before transcribing. Leaving it on Auto-detect works but can misidentify the language — especially for less common languages — leading to garbled or incorrect output.
+
 Status is shown in the UI: `⏳ Loading audio...` → `⏳ Transcribing...` → `✓ Transcript saved → filename.txt`
 
 ---
